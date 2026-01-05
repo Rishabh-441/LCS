@@ -1,0 +1,21 @@
+# Data Files 
+DataCreation/merged_processed_output.csv
+DataCreation/csv_files
+src/lhi_results.csv
+src/row_wise_legal_entities_summ.json
+src/row_wise_legal_entities.json
+DataFiles/output_rr.json
+DataFiles/rhetorical_roles_data.json
+src/lhi_results_advanced.csv
+src/lhi_results_trial_20.csv
+*/__pycache__
+
+# environment variables
+DataCreation/venv
+DataCreation/.env
+src/venv
+
+
+# NER model checkpoint
+Models/model.pt
+
