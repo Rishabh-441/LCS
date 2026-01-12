@@ -2,46 +2,22 @@
 # import csv
 # import re
 # import dateparser
-# import torch
-# import torch.nn.functional as F
-# from transformers import AutoTokenizer, AutoModel
-# from tqdm import tqdm  # <--- Added import
+# from tqdm import tqdm
+# from thefuzz import fuzz  # <--- Added fuzzy matching
 
 # # ==========================================
-# # 1. SETUP BERT MODEL (Global Load)
-# # ==========================================
-
-# print("Loading InLegalBERT model... (This may take a moment)")
-
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# print(f"Using device: {device}")
-
-# # Use your local path if needed, otherwise "law-ai/InLegalBERT"
-# model_name = "law-ai/InLegalBERT" 
-# tokenizer = AutoTokenizer.from_pretrained(model_name)
-# model = AutoModel.from_pretrained(model_name).to(device)
-
-# # Threshold for Semantic Similarity
-# SIMILARITY_THRESHOLD = 0.8
-
-# # ==========================================
-# # 2. HELPER FUNCTIONS
+# # 1. HELPER FUNCTIONS
 # # ==========================================
 
 # def normalize_text(text):
 #     """
-#     Light normalization:
-#     - Lowercase
-#     - Strip leading/trailing whitespace
-#     - KEEPS spaces and special characters inside the string
+#     Cleans text: lowercase and removes non-alphanumeric characters.
 #     """
-#     if not isinstance(text, str): return ""
-#     return text.lower().strip()
+#     if not text:
+#         return ""
+#     return re.sub(r'[^a-z0-9 ]', '', text.lower()).strip()
 
 # def get_parsed_dates(ner_data):
-#     """
-#     Extracts entities labeled 'DATE', parses them, and returns a list of valid datetime objects.
-#     """
 #     dt_list = []
 #     if not ner_data or "DATE" not in ner_data:
 #         return dt_list
@@ -57,7 +33,7 @@
 
 # def get_flat_entity_set(ner_data):
 #     """
-#     Flattens entities for exact string matching.
+#     Returns a set of normalized source entities for fast O(1) exact matching.
 #     """
 #     entity_set = set()
 #     if not ner_data:
@@ -70,58 +46,16 @@
 #                 entity_set.add(norm_entity)
 #     return entity_set
 
-# def get_all_raw_entities(ner_data):
+# def check_fuzzy_match(summary_text_norm, source_entities_norm, threshold=85):
 #     """
-#     Returns a simple list of ALL raw entity strings from the source (for BERT comparison).
+#     Compares a normalized summary entity against all normalized source entities.
+#     Returns True if the highest fuzz ratio >= threshold.
 #     """
-#     raw_list = []
-#     if not ner_data:
-#         return raw_list
-#     for label, entities in ner_data.items():
-#         raw_list.extend(entities)
-#     return raw_list
-
-# # --- BERT FUNCTIONS ---
-
-# def mean_pooling(model_output, attention_mask):
-#     token_embeddings = model_output.last_hidden_state
-#     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-#     sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
-#     sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-#     return sum_embeddings / sum_mask
-
-# def check_semantic_match_bert(summary_text, source_texts):
-#     """
-#     Compares 'summary_text' against a LIST of 'source_texts' efficiently.
-#     Returns True if ANY source text has similarity > SIMILARITY_THRESHOLD.
-#     """
-#     if not source_texts:
-#         return False
-    
-#     encoded_summ = tokenizer([summary_text], padding=True, truncation=True, return_tensors='pt').to(device)
-    
-#     with torch.no_grad():
-#         out_summ = model(**encoded_summ)
-#         emb_summ = mean_pooling(out_summ, encoded_summ['attention_mask'])
-#         emb_summ = F.normalize(emb_summ, p=2, dim=1)
-
-#     # Iterate through source texts
-#     for src_text in source_texts:
-#         encoded_src = tokenizer([src_text], padding=True, truncation=True, return_tensors='pt').to(device)
-        
-#         with torch.no_grad():
-#             out_src = model(**encoded_src)
-#             emb_src = mean_pooling(out_src, encoded_src['attention_mask'])
-#             emb_src = F.normalize(emb_src, p=2, dim=1)
-        
-#         score = F.cosine_similarity(emb_summ, emb_src).item()
-        
-#         if score >= SIMILARITY_THRESHOLD:
-#             return True 
-            
+#     for src_ent in source_entities_norm:
+#         # fuzz.ratio returns an integer 0-100
+#         if fuzz.ratio(summary_text_norm, src_ent) >= threshold:
+#             return True
 #     return False
-
-# # --- DATE FUNCTION ---
 
 # def is_date_match(summary_date_str, source_dt_objects):
 #     try:
@@ -135,13 +69,20 @@
 #         return False
 #     return False
 
+# # ==========================================
+# # 2. LHI CALCULATION (Date -> Exact -> Fuzzy)
+# # ==========================================
+
 # def calculate_lhi_details(source_ner, summary_ner):
 #     """
-#     LHI Calculation with Date, Exact (Light Norm), and BERT matching.
+#     LHI Calculation logic:
+#     1. Date Parsing (for DATE labels)
+#     2. Exact Match (Normalized)
+#     3. Fuzzy Match (Ratio > 85)
 #     """
-#     E_src_norm = get_flat_entity_set(source_ner) # For Exact Match
-#     src_dt_objs = get_parsed_dates(source_ner)   # For Date Match
-#     src_raw_list = get_all_raw_entities(source_ner) # For BERT Match
+#     # Pre-process source data
+#     E_src_norm = get_flat_entity_set(source_ner) 
+#     src_dt_objs = get_parsed_dates(source_ner)   
 
 #     summary_entities_flat = []
 #     if summary_ner:
@@ -158,20 +99,19 @@
 #     for raw_text, label in summary_entities_flat:
 #         is_match = False
         
-#         # A. Semantic Date Matching
+#         # A. Handle Dates
 #         if label == "DATE":
 #             if is_date_match(raw_text, src_dt_objs):
 #                 is_match = True
         
-#         # B. Exact String Matching (Now includes spaces/symbols)
+#         # B. Non-Date or Date-Match-Failed: Try Exact Matching
 #         if not is_match:
 #             norm_text = normalize_text(raw_text)
 #             if norm_text in E_src_norm:
 #                 is_match = True
                 
-#         # C. InLegalBERT Semantic Similarity
-#         if not is_match:
-#             if check_semantic_match_bert(raw_text, src_raw_list):
+#             # C. Try Fuzzy Matching (Only if Exact Match failed)
+#             elif check_fuzzy_match(norm_text, E_src_norm, threshold=85):
 #                 is_match = True
         
 #         if not is_match:
@@ -188,29 +128,23 @@
 
 # SOURCE_FILE = 'row_wise_legal_entities.json'
 # SUMMARY_FILE = 'row_wise_legal_entities_summ.json'
-# OUTPUT_CSV = 'lhi_results_bert_lightnorm.csv'
-
-# print("Loading data files...")
+# OUTPUT_CSV = 'lhi_results_fuzzy.csv'
 
 # try:
 #     with open(SOURCE_FILE, 'r', encoding='utf-8') as f:
 #         source_data = json.load(f)
-        
 #     with open(SUMMARY_FILE, 'r', encoding='utf-8') as f:
 #         summary_data = json.load(f)
 
-#     print(f"Data loaded. Processing {len(summary_data)} documents...")
-
+#     print(f"Processing {len(summary_data)} documents using Fuzzy Logic...")
 #     all_scores = []
 
 #     with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as csvfile:
 #         csv_writer = csv.writer(csvfile)
 #         csv_writer.writerow(['Doc_ID', 'LHI_Score', 'Total_Summary_Entities', 'Hallucination_Count', 'Hallucinated_Entities'])
         
-#         # Wrapped loop in tqdm for progress bar
-#         for doc_id, summary_ner in tqdm(summary_data.items(), desc="Processing Documents"):
+#         for doc_id, summary_ner in tqdm(summary_data.items(), desc="Processing"):
 #             source_ner = source_data.get(doc_id, {})
-            
 #             score, total, h_count, h_list = calculate_lhi_details(source_ner, summary_ner)
             
 #             if score != "N/A":
@@ -219,70 +153,39 @@
 #             h_list_str = "; ".join(h_list)
 #             csv_writer.writerow([doc_id, score, total, h_count, h_list_str])
 
-#     print(f"\nDone! Results saved to '{OUTPUT_CSV}'")
-    
 #     if all_scores:
 #         avg_lhi = sum(all_scores) / len(all_scores)
-#         print("-" * 30)
-#         print(f"Global Average LHI Score: {avg_lhi:.4f}")
-#         print("-" * 30)
-#     else:
-#         print("No valid scores calculated.")
+#         print(f"\nGlobal Average LHI Score: {avg_lhi:.4f}")
 
-# except FileNotFoundError as e:
-#     print(f"Error: {e}")
 # except Exception as e:
-#     print(f"An unexpected error occurred: {e}")
+#     print(f"Error: {e}")
 
 
 
 
-
-
-# ____________________
 import json
 import csv
 import re
 import dateparser
-import torch
-import torch.nn.functional as F
-from transformers import AutoTokenizer, AutoModel
 from tqdm import tqdm
 
 # ==========================================
-# 1. SETUP BERT MODEL (Global Load)
-# ==========================================
-
-print("Loading InLegalBERT model... (This may take a moment)")
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
-
-# Use your local path if needed, otherwise "law-ai/InLegalBERT"
-model_name = "law-ai/InLegalBERT" 
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModel.from_pretrained(model_name).to(device)
-
-# Threshold for Semantic Similarity
-SIMILARITY_THRESHOLD = 0.8
-
-# ==========================================
-# 2. HELPER FUNCTIONS
+# 1. HELPER FUNCTIONS
 # ==========================================
 
 def normalize_text(text):
     """
-    Light normalization:
-    - Lowercase
-    - Strip leading/trailing whitespace
-    - KEEPS spaces and special characters inside the string
+    Standardizes text for exact matching by lowercasing 
+    and removing special characters.
     """
-    if not isinstance(text, str): return ""
-    return text.lower().strip()
+    if not text:
+        return ""
+    # Fixed the variable name from previous snippet (text instead of s)
+    return re.sub(r'[^a-z0-9 ]', '', text.lower()).strip()
 
 def get_parsed_dates(ner_data):
     """
-    Extracts entities labeled 'DATE', parses them, and returns a list of valid datetime objects.
+    Extracts and parses all date strings from the source.
     """
     dt_list = []
     if not ner_data or "DATE" not in ner_data:
@@ -299,7 +202,8 @@ def get_parsed_dates(ner_data):
 
 def get_flat_entity_set(ner_data):
     """
-    Flattens entities for exact string matching.
+    Creates a set of all source entities (normalized) 
+    for high-speed O(1) exact match lookups.
     """
     entity_set = set()
     if not ner_data:
@@ -312,78 +216,35 @@ def get_flat_entity_set(ner_data):
                 entity_set.add(norm_entity)
     return entity_set
 
-def get_all_raw_entities(ner_data):
-    """
-    Returns a simple list of ALL raw entity strings from the source (for BERT comparison).
-    """
-    raw_list = []
-    if not ner_data:
-        return raw_list
-    for label, entities in ner_data.items():
-        raw_list.extend(entities)
-    return raw_list
-
-# --- BERT FUNCTIONS ---
-
-def mean_pooling(model_output, attention_mask):
-    token_embeddings = model_output.last_hidden_state
-    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-    sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
-    sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-    return sum_embeddings / sum_mask
-
-def check_semantic_match_bert(summary_text, source_texts):
-    """
-    Compares 'summary_text' against a LIST of 'source_texts' efficiently.
-    Returns True if ANY source text has similarity > SIMILARITY_THRESHOLD.
-    """
-    if not source_texts:
-        return False
-    
-    encoded_summ = tokenizer([summary_text], padding=True, truncation=True, return_tensors='pt').to(device)
-    
-    with torch.no_grad():
-        out_summ = model(**encoded_summ)
-        emb_summ = mean_pooling(out_summ, encoded_summ['attention_mask'])
-        emb_summ = F.normalize(emb_summ, p=2, dim=1)
-
-    # Iterate through source texts
-    for src_text in source_texts:
-        encoded_src = tokenizer([src_text], padding=True, truncation=True, return_tensors='pt').to(device)
-        
-        with torch.no_grad():
-            out_src = model(**encoded_src)
-            emb_src = mean_pooling(out_src, encoded_src['attention_mask'])
-            emb_src = F.normalize(emb_src, p=2, dim=1)
-        
-        score = F.cosine_similarity(emb_summ, emb_src).item()
-        
-        if score >= SIMILARITY_THRESHOLD:
-            return True 
-            
-    return False
-
-# --- DATE FUNCTION ---
-
 def is_date_match(summary_date_str, source_dt_objects):
+    """
+    Checks if a summary date exists in the source date objects.
+    """
     try:
         summ_dt = dateparser.parse(summary_date_str)
         if summ_dt is None:
             return False
         for src_dt in source_dt_objects:
+            # Comparing only the date part (ignoring time)
             if summ_dt.date() == src_dt.date():
                 return True
     except:
         return False
     return False
 
+# ==========================================
+# 2. LHI CALCULATION (Date & Exact Only)
+# ==========================================
+
 def calculate_lhi_details(source_ner, summary_ner):
     """
-    LHI Calculation with Date, Exact (Light Norm), and BERT matching.
+    LHI Calculation logic:
+    1. If entity is a DATE: Use dateparser comparison.
+    2. Otherwise: Use Exact String Matching (after normalization).
     """
-    E_src_norm = get_flat_entity_set(source_ner) # For Exact Match
-    src_dt_objs = get_parsed_dates(source_ner)   # For Date Match
-    src_raw_list = get_all_raw_entities(source_ner) # For BERT Match
+    # Prepare source data for comparison
+    E_src_norm = get_flat_entity_set(source_ner) 
+    src_dt_objs = get_parsed_dates(source_ner)   
 
     summary_entities_flat = []
     if summary_ner:
@@ -400,22 +261,19 @@ def calculate_lhi_details(source_ner, summary_ner):
     for raw_text, label in summary_entities_flat:
         is_match = False
         
-        # A. Semantic Date Matching
+        # A. Check for Date Match
         if label == "DATE":
             if is_date_match(raw_text, src_dt_objs):
                 is_match = True
         
-        # B. Exact String Matching (Now includes spaces/symbols)
+        # B. Check for Exact Match (Normalized)
+        # Note: We run this for non-dates OR if date parsing failed
         if not is_match:
             norm_text = normalize_text(raw_text)
             if norm_text in E_src_norm:
                 is_match = True
-                
-        # C. InLegalBERT Semantic Similarity
-        if not is_match:
-            if check_semantic_match_bert(raw_text, src_raw_list):
-                is_match = True
         
+        # If neither check passes, it is a hallucination
         if not is_match:
             hallucinated_entities.append(raw_text)
 
@@ -430,32 +288,23 @@ def calculate_lhi_details(source_ner, summary_ner):
 
 SOURCE_FILE = 'row_wise_legal_entities.json'
 SUMMARY_FILE = 'row_wise_legal_entities_summ.json'
-OUTPUT_CSV = 'lhi_results_trial_20.csv'
-
-print("Loading data files...")
+OUTPUT_CSV = 'lhi_results_exact_only.csv'
 
 try:
     with open(SOURCE_FILE, 'r', encoding='utf-8') as f:
         source_data = json.load(f)
-        
     with open(SUMMARY_FILE, 'r', encoding='utf-8') as f:
         summary_data = json.load(f)
 
-    print(f"Data loaded. Selecting FIRST 20 documents for TRIAL...")
-
-    # Select only the first 20 items for the trial run
-    trial_items = list(summary_data.items())[:20]
-
+    print(f"Loaded {len(summary_data)} documents. Running Exact Match LHI...")
     all_scores = []
 
     with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(['Doc_ID', 'LHI_Score', 'Total_Summary_Entities', 'Hallucination_Count', 'Hallucinated_Entities'])
         
-        # Iterate over the sliced trial data
-        for doc_id, summary_ner in tqdm(trial_items, desc="Running Trial (20 Docs)"):
+        for doc_id, summary_ner in tqdm(summary_data.items(), desc="Processing"):
             source_ner = source_data.get(doc_id, {})
-            
             score, total, h_count, h_list = calculate_lhi_details(source_ner, summary_ner)
             
             if score != "N/A":
@@ -464,17 +313,12 @@ try:
             h_list_str = "; ".join(h_list)
             csv_writer.writerow([doc_id, score, total, h_count, h_list_str])
 
-    print(f"\nDone! Results saved to '{OUTPUT_CSV}'")
-    
     if all_scores:
         avg_lhi = sum(all_scores) / len(all_scores)
-        print("-" * 30)
-        print(f"Trial Average LHI Score: {avg_lhi:.4f}")
-        print("-" * 30)
-    else:
-        print("No valid scores calculated in this trial.")
+        print(f"\nProcessing Complete!")
+        print(f"Global Average LHI Score: {avg_lhi:.4f}")
 
 except FileNotFoundError as e:
-    print(f"Error: {e}")
+    print(f"Error: Could not find data files. {e}")
 except Exception as e:
-    print(f"An unexpected error occurred: {e}")
+    print(f"An error occurred: {e}")
