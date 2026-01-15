@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # 1. Load the results
-df = pd.read_csv('lhi_results_exact_only.csv')
+df = pd.read_csv('lhi_final_llm.csv')
 
 # 2. Pre-process the scores
 # Convert LHI_Score to numeric, turning 'N/A' into NaN, then drop them
@@ -22,5 +22,5 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend()
 
 # 5. Save and Show
-plt.savefig('lhi_histogram_exact_match.png')
+plt.savefig('lhi_histogram_llm.png')
 print("Histogram successfully saved as 'lhi_histogram.png'")
