@@ -13,7 +13,7 @@ src/lhi_results_trial_20.csv
 # environment variables
 DataCreation/venv
 DataCreation/.env
-src/venv
+*/venv
 
 
 # NER model checkpoint
