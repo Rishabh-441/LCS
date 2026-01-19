@@ -56,7 +56,7 @@ docs_as_lists = df['document'].apply(parse_document).tolist()
 
 # 3. OpenNyAI Data object expects a list of strings (the full text of each doc)
 # So we join the sentences back together with spaces
-texts_to_process = [" ".join(doc) for doc in docs_as_lists if doc]
+texts_to_process = [" ".join(doc) for doc in docs_as_lists if doc][:5]
 
 # 4. Run the Pipeline
 if not texts_to_process:
