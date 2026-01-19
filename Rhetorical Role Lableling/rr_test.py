@@ -68,30 +68,30 @@ else:
     results = pipeline(data)
     
     # Use it on your data
-    # data_list = results[0]['annotations']
-    # print_pretty_judgment(data_list)
+    data_list = results[0]['annotations']
+    print_pretty_judgment(data_list)
 
 
     # 5. Extract and save predictions
-    complete_predictions = []
+    # complete_predictions = []
 
-    for i, result in enumerate(results):
-        # This captures the full list of sentence-level dictionaries
-        # containing: 'text', 'start', 'end', 'labels', 'id'
-        full_annotation = result['annotations']
+    # for i, result in enumerate(results):
+    #     # This captures the full list of sentence-level dictionaries
+    #     # containing: 'text', 'start', 'end', 'labels', 'id'
+    #     full_annotation = result['annotations']
         
-        complete_predictions.append({
-            "doc_index": i,
-            # We convert the list to a JSON string so it fits in a single CSV cell
-            "full_prediction_json": json.dumps(full_annotation),
-            "total_sentences": len(full_annotation)
-        })
+    #     complete_predictions.append({
+    #         "doc_index": i,
+    #         # We convert the list to a JSON string so it fits in a single CSV cell
+    #         "full_prediction_json": json.dumps(full_annotation),
+    #         "total_sentences": len(full_annotation)
+    #     })
 
-    # 6. Save to a fresh, clean CSV
-    output_df = pd.DataFrame(complete_predictions)
+    # # 6. Save to a fresh, clean CSV
+    # output_df = pd.DataFrame(complete_predictions)
 
-    save_path = '/home/rishabh/ThesisProject/Rhetorical Role Lableling/generated_data/complete_predictions.csv'
-    output_df.to_csv(save_path, index=False)
+    # save_path = '/home/rishabh/ThesisProject/Rhetorical Role Lableling/generated_data/complete_predictions.csv'
+    # output_df.to_csv(save_path, index=False)
 
-    print(f"Done! Saved complete metadata for {len(complete_predictions)} docs.")
-    print(f"File location: {save_path}")
+    # print(f"Done! Saved complete metadata for {len(complete_predictions)} docs.")
+    # print(f"File location: {save_path}")
