@@ -1,0 +1,16 @@
+nohup: ignoring input
+/home/rishabh/ThesisProject/src/venv/lib/python3.10/site-packages/huggingface_hub/file_download.py:942: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+Some weights of the model checkpoint at law-ai/InLegalBERT were not used when initializing BertModel: ['cls.predictions.transform.LayerNorm.weight', 'cls.seq_relationship.weight', 'cls.seq_relationship.bias', 'cls.predictions.bias', 'cls.predictions.decoder.weight', 'cls.predictions.transform.dense.weight', 'cls.predictions.transform.LayerNorm.bias', 'cls.predictions.decoder.bias', 'cls.predictions.transform.dense.bias']
+- This IS expected if you are initializing BertModel from the checkpoint of a model trained on another task or with another architecture (e.g. initializing a BertForSequenceClassification model from a BertForPreTraining model).
+- This IS NOT expected if you are initializing BertModel from the checkpoint of a model that you expect to be exactly identical (initializing a BertForSequenceClassification model from a BertForSequenceClassification model).
+Loading InLegalBERT model... (This may take a moment)
+Using device: cuda
+Loading data files...
+Data loaded. Selecting FIRST 20 documents for TRIAL...
+Running Trial (20 Docs):   0%|          | 0/20 [00:00<?, ?it/s]Running Trial (20 Docs):   5%|▌         | 1/20 [00:03<01:01,  3.22s/it]Running Trial (20 Docs):  10%|█         | 2/20 [00:04<00:34,  1.90s/it]Running Trial (20 Docs):  15%|█▌        | 3/20 [00:12<01:22,  4.87s/it]Running Trial (20 Docs):  20%|██        | 4/20 [00:15<01:03,  3.97s/it]Running Trial (20 Docs):  30%|███       | 6/20 [00:16<00:32,  2.32s/it]Running Trial (20 Docs):  35%|███▌      | 7/20 [00:17<00:23,  1.80s/it]Running Trial (20 Docs):  40%|████      | 8/20 [00:28<00:54,  4.57s/it]Running Trial (20 Docs):  45%|████▌     | 9/20 [00:29<00:38,  3.50s/it]Running Trial (20 Docs):  50%|█████     | 10/20 [00:46<01:12,  7.29s/it]Running Trial (20 Docs):  55%|█████▌    | 11/20 [00:47<00:49,  5.49s/it]Running Trial (20 Docs):  60%|██████    | 12/20 [00:47<00:31,  3.96s/it]Running Trial (20 Docs):  70%|███████   | 14/20 [01:00<00:30,  5.11s/it]Running Trial (20 Docs):  75%|███████▌  | 15/20 [01:18<00:41,  8.23s/it]Running Trial (20 Docs):  80%|████████  | 16/20 [01:19<00:25,  6.33s/it]Running Trial (20 Docs):  85%|████████▌ | 17/20 [01:20<00:14,  4.90s/it]Running Trial (20 Docs):  90%|█████████ | 18/20 [01:24<00:09,  4.77s/it]Running Trial (20 Docs):  95%|█████████▌| 19/20 [01:30<00:04,  4.88s/it]Running Trial (20 Docs): 100%|██████████| 20/20 [01:31<00:00,  3.80s/it]Running Trial (20 Docs): 100%|██████████| 20/20 [01:31<00:00,  4.56s/it]
+
+Done! Results saved to 'lhi_results_trial_20.csv'
+------------------------------
+Trial Average LHI Score: 0.8718
+------------------------------

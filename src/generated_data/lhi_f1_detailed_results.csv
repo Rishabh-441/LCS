@@ -1,0 +1,4 @@
+Doc_ID,Precision_LHI,Recall,F1_Score,Total_Entities,Hallucination_Count,Mismatched_Entities_Types
+0,1.0000,0.1029,0.1867,9,0,
+1,1.0000,0.0270,0.0526,2,0,
+2,0.9091,0.0904,0.1644,22,2,Articles 14 and 16 (PROVISION) | Writ Appeals Nos. (CASE_NUMBER)
