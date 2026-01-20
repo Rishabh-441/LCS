@@ -1,20 +1,24 @@
 import os
+import ast
 import pandas as pd
 from tqdm import tqdm
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.docstore.document import Document
-from langchain.chains.summarize import load_summarize_chain
-from langchain.prompts import PromptTemplate
+from dotenv import load_dotenv
+from google import genai  # New SDK import
+
+load_dotenv()
 
 # 1. Configuration
-os.environ["GOOGLE_API_KEY"] = "YOUR_GEMINI_API_KEY"
-INPUT_CSV = "legal_documents.csv"
-OUTPUT_CSV = "summarized_legal_docs.csv"
+api_key = os.getenv("GOOGLE_API_KEY")
 
-# 2. Initialize Model
-# Using 1.5-Flash for cost-efficiency when processing multiple documents
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.2)
+if api_key:
+    client = genai.Client(api_key=api_key)
+    print("Gemini API Client initialized successfully.")
+else:
+    print("API Key not found. Check your .env file.")
+    exit()
 
+INPUT_CSV = "/home/rishabh/ThesisProject/DataCreation/merged_processed_output.csv"
+OUTPUT_CSV = "generated_data/summarized_legal_docs.csv"
 
 def parse_document(doc_str):
     try:
@@ -22,57 +26,60 @@ def parse_document(doc_str):
     except:
         return []
 
-# 3. Define the Prompt
-prompt_template = """
-Write a professional legal summary of the following document. 
-Highlight the parties, the core dispute, and the legal reasoning.
+os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
 
-Document:
-"{text}"
-
-SUMMARY:"""
-LEGAL_PROMPT = PromptTemplate(template=prompt_template, input_variables=["text"])
-
-# 4. Load Summarization Chain
-# 'stuff' is fastest for documents that fit in the 1M token window. 
-# Use 'map_reduce' if your CSV rows contain extremely long text.
-chain = load_summarize_chain(llm, chain_type="stuff", prompt=LEGAL_PROMPT)
-
-# 5. Process CSV
+# 3. Load Data
 df = pd.read_csv(INPUT_CSV)
-docs_as_lists = df['document'].apply(parse_document).tolist()
-
-# 3. OpenNyAI Data object expects a list of strings (the full text of each doc)
-# So we join the sentences back together with spaces
-texts_to_process = [" ".join(doc) for doc in docs_as_lists if doc][:5]
-
 results = []
+doc_id = 0
 
-print(f"Starting summarization for {len(df)} documents...")
+print(f"Starting summarization for {len(df)} documents using new google-genai SDK...")
 
 for index, row in tqdm(df.iterrows(), total=len(df)):
-    doc_id = row['doc_id']
-    text_content = row['legal_text']
+    doc_list = parse_document(row['document'])
+    full_text = "".join(doc_list)
     
-    if pd.isna(text_content) or str(text_content).strip() == "":
+    if not full_text.strip():
         results.append({"doc_id": doc_id, "summary": "Empty Document"})
         continue
     
-    # Wrap text in a LangChain Document object
-    doc = [Document(page_content=text_content)]
+    prompt = f"""
+    You are a legal expert tasked with producing a clear, comprehensive, and faithful summary of the following legal document.
+
+    Write the summary in well-formed, coherent paragraphs using formal legal language.
+    Capture the core facts of the case, the legal issues involved, the arguments or positions of the parties, the reasoning applied, and the final outcome or holding, where applicable.
+    Preserve logical flow and causal relationships between events and decisions.
+    Avoid paraphrasing so aggressively that legal meaning, nuance, or intent is lost.
+
+    Do not include headings, titles, bullet points, numbering, or any form of markdown.
+    Do not add commentary, opinions, or external information.
+    Do not quote the document verbatim unless essential for legal accuracy.
+    Return only the plain text of the summary paragraphs.
+
+    Document:
+    "{full_text}"
+    
+    Summary :
+    """
+
     
     try:
-        summary = chain.run(doc)
+        # New syntax: client.models.generate_content
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview", 
+            contents=prompt
+        )
+        
         results.append({
             "doc_id": doc_id,
-            "summary": summary.strip()
+            "summary": response.text.strip()
         })
+        doc_id += 1
     except Exception as e:
-        print(f"Error processing {doc_id}: {e}")
-        results.append({"doc_id": doc_id, "summary": "Error during generation"})
+        print(f"\nError on {doc_id}: {e}")
+        break
 
-# 6. Save to CSV
+# 4. Save
 output_df = pd.DataFrame(results)
 output_df.to_csv(OUTPUT_CSV, index=False)
-
 print(f"Summaries saved to {OUTPUT_CSV}")
