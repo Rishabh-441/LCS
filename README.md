@@ -13,12 +13,12 @@ The accuracy of our hallucination detection has evolved through three distinct i
 * **Logic:** Character-for-character comparison after basic normalization.
 * **Problem:** Fails on minor variations like "Mr. Singh" vs "Singh" or "Section 144" vs "Sec. 144".
 * **Result:** Underestimates LHI score due to rigid matching.
-![Exact string matching - LHI score](src/lhi_histogram_exact_match.png)
+![Exact string matching - LHI score](src/generated_data/lhi_histogram_exact_match.png)
 
 ### 2. Fuzzy Logic + Date Parsing
 * **Logic:** Leverages Levenshtein Distance for similarity and `dateparser` for temporal normalization.
 * **Advantage:** Recognizes that "05-11-1980" and "Nov 5, 1980" represent the same date value.
-![String matching using Fuzzy logic + date parser - LHI score](src/lhi_histogram.png)
+![String matching using Fuzzy logic + date parser - LHI score](src/generated_data/lhi_histogram.png)
 
 ### 3. LLM-Enhanced Semantic Matching (Current)
 * **Logic:** Uses **Meta-Llama-3-8B-Instruct** as a "Linguistic Judge" for entities that fail deterministic checks.
@@ -30,7 +30,7 @@ The accuracy of our hallucination detection has evolved through three distinct i
     5. Honorific/Filler Variation
     6. Semantic Equivalence
     7. Absence of Contradiction
-![LLM + String matching using Fuzzy logic + date parser - LHI score](src/lhi_histogram_llm.png)
+![LLM + String matching using Fuzzy logic + date parser - LHI score](src/generated_data/lhi_histogram_llm.png)
 
 ---
 
