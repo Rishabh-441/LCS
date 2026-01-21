@@ -3,7 +3,8 @@ import ast
 import pandas as pd
 from tqdm import tqdm
 from dotenv import load_dotenv
-from google import genai  # New SDK import
+from google import genai
+from google.api_core import exceptions
 
 load_dotenv()
 
@@ -32,6 +33,11 @@ os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
 df = pd.read_csv(INPUT_CSV)
 results = []
 doc_id = 0
+
+def clean_to_paragraphs(text): # FIXED: Function defined
+    text = re.sub(r'[#*_\-]', '', text)
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    return text.strip()
 
 print(f"Starting summarization for {len(df)} documents using new google-genai SDK...")
 
@@ -62,22 +68,25 @@ for index, row in tqdm(df.iterrows(), total=len(df)):
     Summary :
     """
 
-    
     try:
-        # New syntax: client.models.generate_content
         response = client.models.generate_content(
-            model="gemini-3-flash-preview", 
+            model="gemini-3-pro-preview", 
             contents=prompt
         )
         
-        results.append({
-            "doc_id": doc_id,
-            "summary": response.text.strip()
-        })
-        doc_id += 1
+        if response and response.text:
+            final_summary = clean_to_paragraphs(response.text)
+            results.append({"doc_id": doc_id, "summary": final_summary})
+        
+        time.sleep(2) 
+
+    except exceptions.ResourceExhausted: # FIXED: Now recognized
+        print(f"\n[!!!] API Limit Hit on Doc {doc_id}. Saving and exiting.")
+        break 
+
     except Exception as e:
-        print(f"\nError on {doc_id}: {e}")
-        break
+        print(f"\n[!] Skipping Doc {doc_id} due to: {e}")
+        continue
 
 # 4. Save
 output_df = pd.DataFrame(results)
